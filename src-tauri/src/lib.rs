@@ -852,6 +852,7 @@ fn build_and_set_menu(app: &AppHandle) {
             .checked(prefs.show_labels.unwrap_or(true))
             .build(app)?;
         let settings = MenuItemBuilder::with_id("settings", "Settings…").build(app)?;
+        let about = MenuItemBuilder::with_id("about", "About Peek").build(app)?;
         let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
 
         let menu = MenuBuilder::new(app)
@@ -862,6 +863,7 @@ fn build_and_set_menu(app: &AppHandle) {
             .item(&dis_sub)
             .separator()
             .item(&settings)
+            .item(&about)
             .separator()
             .item(&quit)
             .build()?;
@@ -890,6 +892,7 @@ fn set_keep(app: &AppHandle, entity: &str, on: bool) {
 fn handle_menu(app: &AppHandle, id: &str) {
     match id {
         "settings" => open_setup(app),
+        "about" => open_about(app),
         "quit" => app.exit(0),
         "sound" => {
             let sound = {
@@ -980,6 +983,21 @@ fn open_setup(app: &AppHandle) {
         .build()
     {
         eprintln!("failed to create setup window: {e}");
+    }
+}
+
+fn open_about(app: &AppHandle) {
+    if let Some(win) = app.get_webview_window("about") {
+        let _ = win.set_focus();
+        return;
+    }
+    if let Err(e) = WebviewWindowBuilder::new(app, "about", WebviewUrl::App("about.html".into()))
+        .title("About Peek")
+        .inner_size(360.0, 440.0)
+        .resizable(false)
+        .build()
+    {
+        eprintln!("failed to create about window: {e}");
     }
 }
 

@@ -4,7 +4,7 @@ import tailwindcss from "tailwindcss";
 import autoprefixer from "autoprefixer";
 import { resolve } from "path";
 
-// Multi-page Tauri frontend: one entry per window (overlay + setup).
+// Multi-page Tauri frontend: one entry per window (overlay + setup + about).
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -28,6 +28,7 @@ export default defineConfig({
       input: {
         overlay: resolve(__dirname, "overlay.html"),
         setup: resolve(__dirname, "setup.html"),
+        about: resolve(__dirname, "about.html"),
       },
     },
   },
