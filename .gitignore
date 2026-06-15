@@ -1,0 +1,16 @@
+node_modules/
+dist/
+config.json
+.DS_Store
+.serena/
+
+# Rust / Tauri build artifacts
+/src-tauri/target/
+/src-tauri/gen/
+
+# stray package-manager files
+pnpm-lock.yaml
+pnpm-workspace.yaml
+
+# Vite build output
+/dist/
