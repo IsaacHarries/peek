@@ -10,8 +10,8 @@ use std::time::Duration;
 use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{
-    AppHandle, Emitter, EventTarget, LogicalPosition, LogicalSize, Manager, WebviewUrl,
-    WebviewWindowBuilder,
+    AppHandle, Emitter, EventTarget, LogicalPosition, LogicalSize, Manager, Monitor, WebviewUrl,
+    WebviewWindow, WebviewWindowBuilder,
 };
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_tungstenite::tungstenite::Message;
@@ -67,6 +67,9 @@ struct Config {
     cameras: Vec<CameraConfig>,
     #[serde(default = "default_corner")]
     corner: String,
+    // Name of the monitor to show overlays on. Empty = primary / automatic.
+    #[serde(default)]
+    monitor: String,
     #[serde(default = "default_margin")]
     margin: i32,
     #[serde(default = "default_width")]
@@ -85,6 +88,7 @@ impl Default for Config {
             token: String::new(),
             cameras: Vec::new(),
             corner: default_corner(),
+            monitor: String::new(),
             margin: default_margin(),
             width: default_width(),
             height: default_height(),
@@ -430,10 +434,27 @@ fn ensure_window(app: &AppHandle, label: &str) {
     }
 }
 
+// The monitor overlays should appear on: the one named in config if it's
+// currently connected, otherwise the primary monitor.
+fn target_monitor(app: &AppHandle, win: &WebviewWindow) -> Option<Monitor> {
+    let name = app.state::<AppState>().config.lock().unwrap().monitor.clone();
+    if !name.is_empty() {
+        if let Ok(monitors) = win.available_monitors() {
+            if let Some(m) = monitors
+                .into_iter()
+                .find(|m| m.name().map(|n| n == &name).unwrap_or(false))
+            {
+                return Some(m);
+            }
+        }
+    }
+    win.primary_monitor().ok().flatten()
+}
+
 fn position_overlay(app: &AppHandle, label: &str, index: usize) {
     let cfg = app.state::<AppState>().config.lock().unwrap().clone();
     if let Some(win) = app.get_webview_window(label) {
-        if let Ok(Some(monitor)) = win.primary_monitor() {
+        if let Some(monitor) = target_monitor(app, &win) {
             let scale = monitor.scale_factor();
             let mw = monitor.size().width as f64 / scale;
             let mh = monitor.size().height as f64 / scale;
@@ -1032,6 +1053,38 @@ fn reconfigure(app: &AppHandle, cfg: Config) {
 
 // ---------- commands ----------
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MonitorInfo {
+    name: String,
+    width: u32,
+    height: u32,
+    primary: bool,
+}
+
+#[tauri::command]
+fn list_monitors(app: AppHandle) -> Vec<MonitorInfo> {
+    let primary_name = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .and_then(|m| m.name().cloned());
+    app.available_monitors()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|m| {
+            let name = m.name().cloned()?;
+            let scale = m.scale_factor();
+            Some(MonitorInfo {
+                primary: Some(&name) == primary_name.as_ref(),
+                width: (m.size().width as f64 / scale).round() as u32,
+                height: (m.size().height as f64 / scale).round() as u32,
+                name,
+            })
+        })
+        .collect()
+}
+
 #[tauri::command]
 fn setup_load(app: AppHandle) -> Option<Config> {
     load_config(&app)
@@ -1158,6 +1211,7 @@ pub fn run() {
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             setup_load,
+            list_monitors,
             setup_test,
             setup_entities,
             setup_save,

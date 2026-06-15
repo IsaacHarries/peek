@@ -13,6 +13,7 @@ export interface Config {
   token: string;
   cameras: CameraConfig[];
   corner: string;
+  monitor: string;
   margin: number;
   width: number;
   height: number;
@@ -29,6 +30,13 @@ export interface EntityOption {
   entityId: string;
   name: string;
   deviceClass?: string | null;
+}
+
+export interface MonitorInfo {
+  name: string;
+  width: number;
+  height: number;
+  primary: boolean;
 }
 
 export interface TestResult {
@@ -62,6 +70,7 @@ export interface OverlayShow {
 
 export const api = {
   setupLoad: () => invoke<Config | null>("setup_load"),
+  listMonitors: () => invoke<MonitorInfo[]>("list_monitors"),
   setupTest: (config: ConnConfig) => invoke<TestResult>("setup_test", { config }),
   setupEntities: (config: ConnConfig) => invoke<EntitiesResult>("setup_entities", { config }),
   setupSave: (config: Config) => invoke<SaveResult>("setup_save", { config }),

@@ -127,6 +127,7 @@ The setup window writes `config.json` (in the app's config folder). Keys:
 | `cloudUrl` | Optional remote / Nabu Casa URL used when local is unreachable |
 | `token` | Long-lived access token |
 | `cameras` | Array of `{ name, cameraEntity, motionEntities: [] }` |
+| `monitor` | Name of the display to show overlays on (empty = primary / automatic) |
 | `corner` | `top-right`, `top-left`, `bottom-right`, `bottom-left` |
 | `margin` | Distance from the screen edge, in pixels |
 | `width`, `height` | Overlay size in pixels |

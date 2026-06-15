@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { api, type Config, type ConnConfig, type EntityOption } from "@/lib/tauri";
+import {
+  api,
+  type Config,
+  type ConnConfig,
+  type EntityOption,
+  type MonitorInfo,
+} from "@/lib/tauri";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,6 +52,8 @@ export function Setup() {
   const [cloudUrl, setCloudUrl] = useState("");
   const [token, setToken] = useState("");
   const [corner, setCorner] = useState("top-right");
+  const [monitor, setMonitor] = useState("");
+  const [monitors, setMonitors] = useState<MonitorInfo[]>([]);
   const [base, setBase] = useState<Config | null>(null);
   const [cameras, setCameras] = useState<EntityOption[]>([]);
   const [motion, setMotion] = useState<EntityOption[]>([]);
@@ -83,6 +91,7 @@ export function Setup() {
   }
 
   useEffect(() => {
+    api.listMonitors().then(setMonitors).catch(() => setMonitors([]));
     api.setupLoad().then((cfg) => {
       if (!cfg) return;
       setBase(cfg);
@@ -90,6 +99,7 @@ export function Setup() {
       setCloudUrl(cfg.cloudUrl || "");
       setToken(cfg.token || "");
       setCorner(cfg.corner || "top-right");
+      setMonitor(cfg.monitor || "");
       if ((cfg.haUrl || "").trim() && (cfg.token || "").trim()) {
         runLoadEntities(
           { haUrl: cfg.haUrl, cloudUrl: cfg.cloudUrl, token: cfg.token },
@@ -164,6 +174,7 @@ export function Setup() {
       token: token.trim(),
       cameras: cams,
       corner,
+      monitor,
       margin: base?.margin ?? 24,
       width: base?.width ?? 380,
       height: base?.height ?? 300,
@@ -236,8 +247,28 @@ export function Setup() {
             autoComplete="off"
           />
         </div>
-        <div className="flex items-end gap-3">
-          <div className="flex flex-1 flex-col gap-1.5">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex min-w-[12rem] flex-1 flex-col gap-1.5">
+            <Label htmlFor="monitor">Display</Label>
+            <select
+              id="monitor"
+              className={selectClass}
+              value={monitor}
+              onChange={(e) => setMonitor(e.target.value)}
+            >
+              <option value="">Primary (automatic)</option>
+              {monitors.map((m) => (
+                <option key={m.name} value={m.name}>
+                  {m.name}
+                  {m.primary ? " (primary)" : ""} — {m.width}×{m.height}
+                </option>
+              ))}
+              {monitor && !monitors.some((m) => m.name === monitor) && (
+                <option value={monitor}>{monitor} (not connected)</option>
+              )}
+            </select>
+          </div>
+          <div className="flex min-w-[12rem] flex-1 flex-col gap-1.5">
             <Label htmlFor="corner">Overlay corner</Label>
             <select
               id="corner"
