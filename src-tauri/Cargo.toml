@@ -3,6 +3,7 @@ name = "peek"
 version = "1.0.0"
 description = "Live Home Assistant camera overlay"
 authors = ["Isaac Harries"]
+license = "Apache-2.0"
 edition = "2021"
 
 [lib]
