@@ -1169,16 +1169,6 @@ pub fn run() {
             webrtc_candidate,
             webrtc_stop,
         ])
-        .on_window_event(|window, event| {
-            if window.label() == "setup" {
-                if let tauri::WindowEvent::Destroyed = event {
-                    let app = window.app_handle();
-                    if !app.state::<AppState>().started.load(Ordering::SeqCst) {
-                        app.exit(0);
-                    }
-                }
-            }
-        })
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -1192,6 +1182,16 @@ pub fn run() {
             }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            // Peek is a menu-bar app. Once started, closing the last window
+            // (e.g. the setup window) must NOT quit it — only the tray "Quit"
+            // (an explicit app.exit, which carries an exit code) should.
+            if let tauri::RunEvent::ExitRequested { code, api, .. } = event {
+                if code.is_none() && app_handle.state::<AppState>().started.load(Ordering::SeqCst) {
+                    api.prevent_exit();
+                }
+            }
+        });
 }
