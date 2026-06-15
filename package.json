@@ -2,7 +2,7 @@
   "name": "peek",
   "version": "1.0.0",
   "description": "Desktop pop-up overlay that shows a live Home Assistant camera feed when motion is detected",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "Isaac Harries",
   "type": "module",
   "scripts": {

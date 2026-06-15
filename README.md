@@ -134,4 +134,4 @@ The setup window writes `config.json` (in the app's config folder). Keys:
 
 ## License
 
-MIT
+[Apache 2.0](LICENSE)
