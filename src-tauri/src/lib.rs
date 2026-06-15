@@ -953,7 +953,8 @@ fn open_setup(app: &AppHandle) {
     }
     if let Err(e) = WebviewWindowBuilder::new(app, "setup", WebviewUrl::App("setup.html".into()))
         .title("Peek Setup")
-        .inner_size(520.0, 660.0)
+        .inner_size(720.0, 860.0)
+        .min_inner_size(520.0, 600.0)
         .resizable(true)
         .build()
     {
