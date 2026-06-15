@@ -304,26 +304,44 @@ export function Setup() {
                   </select>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label>Motion sensors (Cmd/Ctrl-click to select several)</Label>
-                  <select
-                    multiple
-                    size={5}
-                    className={cn(selectClass, "h-auto py-1.5")}
-                    value={row.motionEntities}
-                    onChange={(e) => {
-                      const motionEntities = Array.from(e.target.selectedOptions).map(
-                        (o) => o.value
-                      );
-                      updateRow(i, { motionEntities });
-                    }}
-                  >
-                    {motion.map((m) => (
-                      <option key={m.entityId} value={m.entityId} className="rounded px-1.5 py-1">
-                        {m.name} ({m.entityId})
-                        {m.deviceClass ? ` · ${m.deviceClass}` : ""}
-                      </option>
-                    ))}
-                  </select>
+                  <Label>Motion sensors</Label>
+                  <div className="max-h-48 overflow-y-auto rounded-md border border-input">
+                    {motion.length === 0 ? (
+                      <p className="px-3 py-2 text-xs text-muted-foreground">
+                        No binary sensors found.
+                      </p>
+                    ) : (
+                      motion.map((m) => {
+                        const checked = row.motionEntities.includes(m.entityId);
+                        return (
+                          <label
+                            key={m.entityId}
+                            className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm hover:bg-secondary"
+                          >
+                            <input
+                              type="checkbox"
+                              className="h-3.5 w-3.5 shrink-0 accent-primary"
+                              checked={checked}
+                              onChange={(e) => {
+                                const next = e.target.checked
+                                  ? [...row.motionEntities, m.entityId]
+                                  : row.motionEntities.filter((id) => id !== m.entityId);
+                                updateRow(i, { motionEntities: next });
+                              }}
+                            />
+                            <span className="truncate">
+                              {m.name}
+                              <span className="text-muted-foreground">
+                                {" "}
+                                ({m.entityId}
+                                {m.deviceClass ? ` · ${m.deviceClass}` : ""})
+                              </span>
+                            </span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
                 <Button
                   variant="ghost"
