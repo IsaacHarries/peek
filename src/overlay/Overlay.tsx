@@ -51,8 +51,34 @@ export function Overlay() {
   const remoteReady = useRef(false);
   const bufferedCandidates = useRef<RTCIceCandidateInit[]>([]);
   const hideTimer = useRef<number | null>(null);
+  // The entity currently streaming, so we can transparently restart it after
+  // the peer connection drops (e.g. the machine slept and the ICE link died).
+  const currentEntity = useRef<string | null>(null);
+  const restartTimer = useRef<number | null>(null);
+  const watchdogTimer = useRef<number | null>(null);
+  const lastBytes = useRef<number>(0);
+  const stallChecks = useRef<number>(0);
+
+  function clearRestartTimer() {
+    if (restartTimer.current) {
+      clearTimeout(restartTimer.current);
+      restartTimer.current = null;
+    }
+  }
+
+  function clearWatchdog() {
+    if (watchdogTimer.current) {
+      clearInterval(watchdogTimer.current);
+      watchdogTimer.current = null;
+    }
+    lastBytes.current = 0;
+    stallChecks.current = 0;
+  }
 
   function stopStream() {
+    clearRestartTimer();
+    clearWatchdog();
+    currentEntity.current = null;
     if (pcRef.current) {
       try {
         pcRef.current.close();
@@ -67,8 +93,88 @@ export function Overlay() {
     api.webrtcStop(LABEL);
   }
 
+  // Re-establish the stream after the connection dropped, but only if this pc
+  // is still the active one and the feed is still meant to be on screen.
+  function restartStream(pc: RTCPeerConnection) {
+    if (pcRef.current !== pc) return;
+    const entity = currentEntity.current;
+    if (!entity) return;
+    startStream(entity);
+  }
+
+  // Watch for the peer connection dying (consent freshness lost on sleep, ICE
+  // failure, etc.) and restart so a kept-visible feed doesn't freeze forever.
+  function watchConnection(pc: RTCPeerConnection) {
+    const onChange = () => {
+      if (pcRef.current !== pc) return;
+      const state = pc.connectionState;
+      if (state === "failed") {
+        clearRestartTimer();
+        restartStream(pc);
+      } else if (state === "disconnected") {
+        // "disconnected" is often transient and can recover on its own; give
+        // it a moment before forcing a full restart.
+        if (restartTimer.current) return;
+        restartTimer.current = window.setTimeout(() => {
+          restartTimer.current = null;
+          if (pcRef.current === pc && pc.connectionState !== "connected") restartStream(pc);
+        }, 4000);
+      } else if (state === "connected") {
+        clearRestartTimer();
+      }
+    };
+    pc.onconnectionstatechange = onChange;
+    // Older WebRTC stacks surface recovery only via iceConnectionState.
+    pc.oniceconnectionstatechange = () => {
+      if (pcRef.current !== pc) return;
+      const ice = pc.iceConnectionState;
+      if (ice === "failed") {
+        clearRestartTimer();
+        restartStream(pc);
+      }
+    };
+  }
+
+  // After sleep/wake the connection can stay "connected" while RTP has silently
+  // stopped, leaving a frozen frame. Poll inbound stats and restart if no new
+  // video bytes arrive for several seconds while the feed should be playing.
+  function startWatchdog(pc: RTCPeerConnection) {
+    clearWatchdog();
+    lastBytes.current = 0;
+    stallChecks.current = 0;
+    watchdogTimer.current = window.setInterval(async () => {
+      if (pcRef.current !== pc) return;
+      // Only judge stalls once media is meant to be flowing.
+      if (!remoteReady.current) return;
+      let bytes = 0;
+      try {
+        const stats = await pc.getStats();
+        stats.forEach((report) => {
+          if (report.type === "inbound-rtp" && report.kind === "video") {
+            bytes = Math.max(bytes, (report as RTCInboundRtpStreamStats).bytesReceived ?? 0);
+          }
+        });
+      } catch {
+        return;
+      }
+      if (pcRef.current !== pc) return;
+      if (bytes > lastBytes.current) {
+        lastBytes.current = bytes;
+        stallChecks.current = 0;
+        return;
+      }
+      // No growth since last poll. Wait for a couple of stalled polls (to ride
+      // out brief hiccups) before forcing a restart.
+      stallChecks.current += 1;
+      if (stallChecks.current >= 3) {
+        restartStream(pc);
+      }
+    }, 3000);
+  }
+
   async function startStream(entity: string) {
     stopStream();
+    currentEntity.current = entity;
     remoteReady.current = false;
     bufferedCandidates.current = [];
     const pc = new RTCPeerConnection();
@@ -82,6 +188,8 @@ export function Overlay() {
     pc.onicecandidate = (e) => {
       if (e.candidate) api.webrtcCandidate(LABEL, e.candidate.toJSON());
     };
+    watchConnection(pc);
+    startWatchdog(pc);
     try {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
